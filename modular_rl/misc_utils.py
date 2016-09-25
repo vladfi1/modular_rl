@@ -99,7 +99,7 @@ GENERAL_OPTIONS = [
     ("outfile",str,"/tmp/a.h5","output file"),
     ("use_hdf",int,0,"whether to make an hdf5 file with results and snapshots"),
     ("snapshot_every",int,0,"how often to snapshot"),
-    ("load_snapshot",str,"","path to snapshot"),
+    ("load_snapshot",int,1,"load agent from snapshot"),
     ("video",int,1,"whether to record video")
 ]
 
@@ -111,23 +111,31 @@ GENERAL_OPTIONS = [
 def prepare_h5_file(args):
     outfile_default = "/tmp/a.h5"
     fname = args.outfile or outfile_default
-    if osp.exists(fname) and fname != outfile_default:
-        eval(input("output file %s already exists. press enter to continue. (exit with ctrl-C)"%fname))
-    import h5py
-    hdf = h5py.File(fname,"w")
-    hdf.create_group('params')
-    for (param,val) in list(args.__dict__.items()):
-        try: hdf['params'][param] = val
-        except (ValueError,TypeError):
-            print(("not storing parameter",param))
+    
     diagnostics = defaultdict(list)
-    print(("Saving results to %s"%fname))
-    def save():
+    
+    import h5py
+    if osp.exists(fname) and fname != outfile_default:
+        hdf = h5py.File(fname,"r+")
+        # TODO: set diagonstics
+    else:
+        hdf = h5py.File(fname,"w")
+        hdf.create_group('params')
+        for (param,val) in list(args.__dict__.items()):
+            try: hdf['params'][param] = val
+            except (ValueError,TypeError):
+                print(("not storing parameter",param))
+        
+        hdf["cmd"] = " ".join(sys.argv)
+        
         hdf.create_group("diagnostics")
-        for (diagname, val) in list(diagnostics.items()):
-            hdf["diagnostics"][diagname] = val
-    hdf["cmd"] = " ".join(sys.argv)
-    atexit.register(save)
+        def save():
+            for (diagname, val) in list(diagnostics.items()):
+                hdf["diagnostics"][diagname] = val
+        atexit.register(save)
+    
+    print(("Saving results to %s"%fname))
+    
 
     return hdf, diagnostics
 
